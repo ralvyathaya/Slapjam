@@ -2,23 +2,26 @@ import Phaser from 'phaser'
 
 type Particle = {
   x: number; y: number; vx: number; vy: number; life: number; duration: number
-  size: number; color: number; gravity: number; kind: 'dust' | 'stone' | 'spark' | 'smoke'
+  size: number; color: number; gravity: number; kind: 'dust' | 'stone' | 'spark' | 'smoke' | 'confetti'
+  spin?: number
 }
+
+const CONFETTI_COLORS = [0xf2d493, 0xe77c72, 0x8bdbb0, 0x82bdaf, 0xe5e4cd, 0xc3a0cb]
 
 /** One bounded particle batch: no per-particle GameObjects, timers, or tweens. */
 export class EffectsSystem {
   readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly scene: Phaser.Scene
   private readonly graphic: Phaser.GameObjects.Graphics
-  private readonly sky: Phaser.GameObjects.Graphics
+  private readonly sky?: Phaser.GameObjects.Graphics
   private particles: Particle[] = []
   private age = 0
   private seed = 117
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, overlay = false) {
     this.scene = scene
-    this.graphic = scene.add.graphics().setDepth(28)
-    this.sky = scene.add.graphics().setDepth(-10).setScrollFactor(0)
+    this.graphic = scene.add.graphics().setDepth(overlay ? 200 : 28)
+    if (!overlay) this.sky = scene.add.graphics().setDepth(-10).setScrollFactor(0)
   }
 
   get activeParticles() { return this.particles.length }
@@ -64,6 +67,18 @@ export class EffectsSystem {
   crown(x: number, y: number) { this.burst(x, y, 30, 'spark', 0xf2d493, 190) }
   victory(x: number, y: number) { this.burst(x, y, 100, 'spark', 0xf2d493, 310) }
 
+  /** Paper confetti drifting down over the visible screen; bounded by the shared particle cap. */
+  confetti(count = 90) {
+    const top = this.scene.cameras.main.scrollY
+    const amount = Math.min(this.reducedMotion ? Math.ceil(count / 4) : count, 240 - this.particles.length)
+    for (let i = 0; i < amount; i++) {
+      const duration = 2600 + this.random() * 1800
+      this.particles.push({ x: this.random() * 720, y: top - 20 - this.random() * 260, vx: (this.random() - .5) * 90,
+        vy: 60 + this.random() * 90, life: duration, duration, size: 6 + this.random() * 6,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length]!, gravity: 30, kind: 'confetti', spin: this.random() * 10 })
+    }
+  }
+
   update(delta: number) {
     const step = Math.min(delta, 50), dt = step / 1000
     this.age += step
@@ -73,6 +88,13 @@ export class EffectsSystem {
       if (p.life <= 0) continue
       p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.gravity * dt
       const remaining = p.life / p.duration
+      if (p.kind === 'confetti') {
+        // Flutter by squashing the width, which reads as a tumbling paper strip.
+        const flip = Math.abs(Math.sin(this.age / 140 + p.spin!))
+        p.x += Math.sin(this.age / 300 + p.spin!) * 40 * dt
+        this.graphic.fillStyle(p.color, Math.min(1, remaining * 3)).fillRect(p.x - p.size * flip / 2, p.y, p.size * flip + 1, p.size * .55)
+        continue
+      }
       const size = p.kind === 'smoke' ? p.size * (2.5 - remaining * 1.5) : p.size
       this.graphic.fillStyle(p.color, remaining * (p.kind === 'smoke' ? .22 : p.kind === 'dust' ? .35 : .85))
       if (p.kind === 'stone') this.graphic.fillRect(p.x, p.y, size, size * .65)
@@ -83,6 +105,7 @@ export class EffectsSystem {
   }
 
   private drawAtmosphere() {
+    if (!this.sky) return
     const g = this.sky.clear(), time = this.reducedMotion ? 0 : this.age / 1000
     for (let i = 0; i < 14; i++) {
       const x = ((i * 137 + time * (2 + i % 3)) % 800) - 40
@@ -94,5 +117,5 @@ export class EffectsSystem {
     for (let i = 0; i < 3; i++) g.fillEllipse(150 + i * 260 + Math.sin(time * .06 + i) * 75, 790 + i * 56, 480, 40)
   }
 
-  destroy() { this.particles = []; this.graphic.destroy(); this.sky.destroy() }
+  destroy() { this.particles = []; this.graphic.destroy(); this.sky?.destroy() }
 }

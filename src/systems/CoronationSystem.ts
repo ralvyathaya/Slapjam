@@ -1,16 +1,23 @@
 import type { StabilityState } from '../types/blockTypes'
+import { getLevelConfig } from '../config/levels'
+import type { LevelConfig } from '../config/levels'
 
 export class CoronationSystem {
   readonly level: number
+  readonly config: LevelConfig
   readonly targetHeight: number
+  readonly durationMs: number
   unlocked = false
   started = false
-  remainingMs = 10_000
+  remainingMs: number
   result: 'victory' | 'defeat' | null = null
 
   constructor(level = 1) {
-    this.level = Math.max(1, Math.floor(level))
-    this.targetHeight = 15 + (this.level - 1) * 5
+    this.config = getLevelConfig(level)
+    this.level = this.config.level
+    this.targetHeight = this.config.targetHeight
+    this.durationMs = this.config.coronationMs
+    this.remainingMs = this.durationMs
   }
 
   update(delta: number, height: number, kingState?: StabilityState) {
@@ -28,7 +35,7 @@ export class CoronationSystem {
       }
     } else if (this.started) {
       // Victory requires continuous stability, not accumulated safe fragments.
-      this.remainingMs = 10_000
+      this.remainingMs = this.durationMs
     }
     return events
   }

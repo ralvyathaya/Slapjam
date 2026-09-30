@@ -8,6 +8,11 @@ import { CombatSystem } from '../systems/CombatSystem'
 import { CoronationSystem } from '../systems/CoronationSystem'
 import { AudioSystem } from '../systems/AudioSystem'
 import { EffectsSystem } from '../systems/EffectsSystem'
+import { recordHeight, recordVictory } from '../systems/SaveData'
+
+export type DefeatReason = 'king' | 'collapse'
+/** Losing this many rooms before the crown is placed razes the castle. */
+export const MAX_LOST_ROOMS = 10
 
 export class GameScene extends Phaser.Scene {
   blocks: CastleBlock[] = []
@@ -25,6 +30,11 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem
   audio!: AudioSystem
   effects!: EffectsSystem
+  defeatReason: DefeatReason = 'king'
+  newBestHeight = false
+  victoryResult?: ReturnType<typeof recordVictory>
+  wind = 0
+  private lostAtCrown = 0
   private level = 1
   private elapsed = 0
   private nextDropAt = 0
@@ -43,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     this.placed = 0; this.lost = 0; this.kingPlaced = false; this.gameOver = false
     this.paused = false; this.elapsed = 0; this.nextDropAt = 0; this.accumulator = 0
     this.lastBlock = undefined; this.aiming = false
+    this.defeatReason = 'king'; this.newBestHeight = false; this.victoryResult = undefined; this.wind = 0; this.lostAtCrown = 0
     this.coronation = new CoronationSystem(this.level)
     this.waves = new WaveManager(this, this.level)
     this.combat = new CombatSystem(this)
@@ -59,6 +70,7 @@ export class GameScene extends Phaser.Scene {
     this.events.on('weaponFired', this.weaponFired, this)
     this.events.on('cannonExploded', this.cannonExploded, this)
     this.events.once('shutdown', () => {
+      recordHeight(this.bestHeight)
       this.events.off('siegeImpact', this.siegeImpact, this)
       this.events.off('enemyDefeated', this.enemyDefeated, this)
       this.events.off('weaponFired', this.weaponFired, this)
@@ -85,6 +97,7 @@ export class GameScene extends Phaser.Scene {
     this.matter.world.on('collisionstart', contacts)
     this.matter.world.on('collisionactive', contacts)
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.audio.resume()
       if (!this.paused && !this.gameOver && pointer.y > 190 && pointer.y < 1000) {
         this.aiming = true; this.crane.targetX = pointer.x
       }
@@ -97,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     if (this.input.keyboard) {
       this.keys = this.input.keyboard.addKeys('LEFT,RIGHT,A,D') as Record<string, Phaser.Input.Keyboard.Key>
       this.input.keyboard.on('keydown', (event: KeyboardEvent) => {
+        this.audio.resume()
         if (event.repeat || this.paused || this.gameOver) return
         if (event.code === 'Space') this.drop()
         if (event.code === 'KeyR') this.rotate()
@@ -110,6 +124,7 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('UI')
   }
 
+  get runSeconds() { return this.elapsed / 1000 }
   get height() { return Math.max(0, (GROUND_Y - this.highestY) / PIXELS_PER_METRE) }
   get kingUnlocked() { return this.coronation.unlocked }
   get ready() {
@@ -130,8 +145,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.ready || (this.crane.type === 'king' && (this.kingPlaced || !this.kingUnlocked))) return
     const block = new CastleBlock(this, this.crane.type, this.crane.x, this.crane.y, this.crane.angle)
     this.blocks.push(block); this.lastBlock = block; this.placed++
-    this.nextDropAt = this.elapsed + 450
-    if (this.crane.type === 'king') { this.kingPlaced = true; this.crane.select('stone') }
+    this.nextDropAt = this.elapsed + 350
+    if (this.crane.type === 'king') { this.kingPlaced = true; this.lostAtCrown = this.lost; this.crane.select('stone') }
   }
 
   update(_time: number, delta: number) {
@@ -140,6 +155,7 @@ export class GameScene extends Phaser.Scene {
     this.accumulator += Math.min(delta, 100)
     const step = 1000 / 60
     while (this.accumulator >= step) {
+      this.applyWind()
       this.matter.world.step(step)
       this.elapsed += step; this.accumulator -= step
       for (const block of [...this.blocks]) {
@@ -203,17 +219,42 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Level 3+ gusts push rooms while they fall; a settled castle is left alone. */
+  private applyWind() {
+    const strength = this.coronation.config.wind
+    if (!strength) return
+    const t = this.elapsed / 1000
+    this.wind = strength * (Math.sin(t * .45) * .75 + Math.sin(t * 1.3 + 1) * .25)
+    for (const block of this.blocks) {
+      if (block.stability.hasLanded) continue
+      this.matter.body.applyForce(block.body, block.body.position, { x: block.body.mass * this.wind, y: 0 })
+    }
+  }
+
   private checkDefeat() {
     const king = this.blocks.find(b => b.type === 'king')
     const overturned = king && king.stability.hasLanded && Math.abs(Math.atan2(Math.sin(king.body.angle), Math.cos(king.body.angle))) >= 65 * Math.PI / 180
-    if (this.kingPlaced && (!king || king.touchesGround || overturned)) { this.finish('defeat'); return true }
+    if (this.kingPlaced && (!king || king.touchesGround || overturned)) {
+      // Rooms lost after the crown went up mean the castle gave way beneath the king.
+      this.defeatReason = this.lost > this.lostAtCrown ? 'collapse' : 'king'
+      this.finish('defeat'); return true
+    }
+    if (!this.kingPlaced && this.lost >= MAX_LOST_ROOMS) {
+      this.defeatReason = 'collapse'; this.finish('defeat'); return true
+    }
     return false
   }
 
   private finish(result: 'victory' | 'defeat') {
     if (this.gameOver) return
     if (result === 'defeat') this.coronation.defeat()
+    else this.coronation.result ??= 'victory'
     this.gameOver = true; this.crane.enabled = false
+    this.newBestHeight = recordHeight(this.bestHeight)
+    if (result === 'victory') {
+      this.victoryResult = recordVictory({ level: this.coronation.level, height: this.height, kills: this.waves.kills,
+        placed: this.placed, lost: this.lost, seconds: this.runSeconds, parSeconds: this.coronation.config.parSeconds })
+    }
     this.audio.stop(); this.audio.play(result, .85)
     if (result === 'victory') this.effects.victory(360, this.highestY)
     this.events.emit(result)

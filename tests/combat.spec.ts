@@ -153,7 +153,7 @@ test('coronation victory, paused clock, and next-level cleanup through the UI', 
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
     const s = game.scene.getScene('Game')
     return { level: s.coronation.level, target: s.coronation.targetHeight, placed: s.placed, unlocked: s.kingUnlocked, enemies: s.waves.enemies.length, shots: s.combat.projectiles.length }
-  })).toEqual({ level: 2, target: 20, placed: 0, unlocked: false, enemies: 0, shots: 0 })
+  })).toEqual({ level: 2, target: 25, placed: 0, unlocked: false, enemies: 0, shots: 0 })
   expect(errors).toEqual([])
 })
 

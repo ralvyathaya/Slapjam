@@ -1,6 +1,7 @@
 :root { color-scheme: dark; font-family: Arial, sans-serif; background: #090f16; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html, body { position: fixed; inset: 0; }
 body { background: radial-gradient(ellipse at center, #1c2c32 0%, #090f16 72%); }
 #app { display: flex; align-items: center; justify-content: center; }
-canvas { display: block; box-shadow: 0 0 100px #0008; }
+canvas { display: block; box-shadow: 0 0 100px #0008; touch-action: none; outline: none; }

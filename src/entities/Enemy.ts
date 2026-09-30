@@ -23,9 +23,9 @@ export class Enemy {
   private mode: 'approach' | 'windup' | 'swoop' | 'retreat' = 'approach'
   private target?: CastleBlock
 
-  constructor(scene: Phaser.Scene, type: EnemyType, side: -1 | 1, y: number) {
+  constructor(scene: Phaser.Scene, type: EnemyType, side: -1 | 1, y: number, hp?: number) {
     this.scene = scene; this.type = type; this.side = side
-    this.maxHp = type === 'gargoyle' ? 30 : 120; this.hp = this.maxHp
+    this.maxHp = hp ?? (type === 'gargoyle' ? 30 : 120); this.hp = this.maxHp
     this.radius = type === 'gargoyle' ? 23 : 40
     this.x = side === -1 ? -50 : 770; this.y = type === 'ram' ? GROUND_Y - 27 : y
     this.health = scene.add.graphics()

@@ -31,12 +31,20 @@ export class AudioSystem {
     // Phaser installs its own first-gesture unlock handlers, including keyboard.
   }
 
+  /** Mobile browsers suspend audio until a gesture and again after backgrounding the tab. */
+  resume() {
+    if (!this.available || this.muted) return
+    const context = (this.manager as Phaser.Sound.WebAudioSoundManager).context
+    if (context.state !== 'running') context.resume().catch(() => { /* Retried on the next gesture. */ })
+  }
+
   toggleMute() {
     if (!this.available) return
     // AudioParam gain changes apply on the audio thread; keep UI intent synchronous.
     this.muted = !this.muted
     this.manager.mute = this.muted
     if (this.muted) this.stop()
+    else this.resume()
     try { localStorage.setItem('castledown-muted', String(this.muted)) } catch { /* Keep the preference for this session. */ }
   }
 

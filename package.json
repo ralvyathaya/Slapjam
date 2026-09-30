@@ -1,14 +1,15 @@
 {
   "name": "slapjam",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "verify:build": "npm run build && node scripts/verify-build.mjs"
+    "verify:build": "npm run build && node scripts/verify-build.mjs",
+    "pack": "npm run build && node scripts/package-itch.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

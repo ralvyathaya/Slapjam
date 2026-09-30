@@ -79,7 +79,7 @@ test('throne on bare bedrock ends the run and retry works', async ({ page }) => 
   await page.keyboard.press('Space')
   await expect.poll(async () => (await state(page)).gameOver).toBe(true)
   await page.screenshot({ path: 'test-results/defeat.png' })
-  await page.mouse.click(360, 865)
+  await page.mouse.click(360, 795)
   await expect.poll(async () => (await state(page)).placed).toBe(0)
   expect((await state(page)).gameOver).toBe(false)
 })

@@ -96,7 +96,7 @@ export class CastleBlock {
     return this.reloadMs === 0
   }
 
-  fired() { this.reloadMs = this.type === 'archer' ? 1200 : 3000 }
+  fired() { this.reloadMs = this.type === 'archer' ? 1200 : 2500 }
 
   destroy(scene: Phaser.Scene) { scene.matter.world.remove(this.body); this.visual.destroy() }
 }

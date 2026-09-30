@@ -3,6 +3,8 @@ import { Enemy } from '../entities/Enemy'
 import type { EnemyType } from '../entities/Enemy'
 import type { CastleBlock } from '../entities/CastleBlock'
 import { GROUND_Y } from '../types/blockTypes'
+import { getLevelConfig } from '../config/levels'
+import type { LevelConfig } from '../config/levels'
 
 export class WaveManager {
   enemies: Enemy[] = []
@@ -10,25 +12,31 @@ export class WaveManager {
   milestone = 0
   swarmSpawned = false
   private scene: Phaser.Scene
-  private level: number
-  private groundTimer = 14_000
+  private config: LevelConfig
+  private groundTimer: number
   private side: -1 | 1 = -1
   private pending: { delay: number; type: EnemyType }[] = []
 
-  constructor(scene: Phaser.Scene, level: number) { this.scene = scene; this.level = level }
+  constructor(scene: Phaser.Scene, level: number) {
+    this.scene = scene; this.config = getLevelConfig(level)
+    this.groundTimer = this.config.ramFirstMs
+  }
 
   update(delta: number, height: number, blocks: CastleBlock[], coronating: boolean) {
     const top = Math.min(GROUND_Y, ...blocks.filter(b => b.hasBeenStable).map(b => b.body.bounds.min.y))
     const reached = Math.floor((height + .025) / 10)
     while (this.milestone < reached) {
       this.milestone++
-      this.queueGargoyles(Math.min(5, 2 + Math.floor(this.level / 2)))
+      this.queueGargoyles(this.config.scoutsPerMilestone)
       this.scene.events.emit('airWave', this.milestone * 10)
     }
-    this.groundTimer -= delta
-    if (this.groundTimer <= 0) {
-      if (this.enemies.filter(e => e.alive && e.type === 'ram').length < 4) this.spawn('ram', GROUND_Y)
-      this.groundTimer = Math.max(8000, 17_000 - this.level * 1000)
+    // Rams wait for a castle to exist so an empty foundation is never punished.
+    if (this.config.ramIntervalMs > 0 && blocks.length > 0) {
+      this.groundTimer -= delta
+      if (this.groundTimer <= 0) {
+        if (this.enemies.filter(e => e.alive && e.type === 'ram').length < this.config.maxRams) this.spawn('ram', GROUND_Y)
+        this.groundTimer = this.config.ramIntervalMs
+      }
     }
     for (const entry of this.pending) entry.delay -= delta
     for (const entry of this.pending.filter(e => e.delay <= 0)) this.spawn(entry.type, top - 190)
@@ -39,7 +47,7 @@ export class WaveManager {
   triggerSwarm() {
     if (this.swarmSpawned) return
     this.swarmSpawned = true
-    this.queueGargoyles(3 + Math.min(this.level, 5), true)
+    this.queueGargoyles(this.config.swarmSize, true)
   }
 
   private queueGargoyles(count: number, finalSwarm = false) {
@@ -48,7 +56,8 @@ export class WaveManager {
   }
 
   spawn(type: EnemyType, y: number) {
-    const enemy = new Enemy(this.scene, type, this.side, y)
+    const hp = type === 'gargoyle' ? this.config.gargoyleHp : this.config.ramHp || undefined
+    const enemy = new Enemy(this.scene, type, this.side, y, hp)
     this.side = this.side === -1 ? 1 : -1
     this.enemies.push(enemy)
     return enemy

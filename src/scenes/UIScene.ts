@@ -1,7 +1,10 @@
 import Phaser from 'phaser'
 import { BLOCKS, BLOCK_TYPES } from '../types/blockTypes'
 import type { BlockType } from '../types/blockTypes'
-import { GameScene } from './GameScene'
+import { GameScene, MAX_LOST_ROOMS } from './GameScene'
+import { EffectsSystem } from '../systems/EffectsSystem'
+import { loadSave } from '../systems/SaveData'
+import { CAMPAIGN_LEVELS, getLevelConfig } from '../config/levels'
 
 const INK = '#e5e4cd', MUTED = '#8fa9a5', GOLD = '#e5c58c'
 
@@ -29,6 +32,9 @@ export class UIScene extends Phaser.Scene {
   private stageLabel!: Phaser.GameObjects.Text
   private threatLabel!: Phaser.GameObjects.Text
   private soundIcon!: Phaser.GameObjects.Graphics
+  private bestLabel!: Phaser.GameObjects.Text
+  private savedBest = 0
+  private confetti!: EffectsSystem
 
   constructor() { super('UI') }
 
@@ -38,6 +44,7 @@ export class UIScene extends Phaser.Scene {
     this.previousType = undefined; this.previousKing = false; this.displayedMilestone = 0
     this.previousUnlocked = false
     this.drawHeader(); this.drawDock()
+    this.confetti = new EffectsSystem(this, true)
     const hint1 = this.text(360, 331, 'Every kingdom starts', 30, INK, 'Georgia').setOrigin(.5)
     const hint2 = this.text(360, 370, 'with a single stone.', 30, INK, 'Georgia').setOrigin(.5)
     const hint3 = this.text(360, 419, 'DRAG TO AIM  ·  TAP DROP TO BUILD', 14, MUTED).setOrigin(.5).setLetterSpacing(2)
@@ -52,10 +59,15 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.events.off('defeat', this.showDefeat, this)
       this.gameScene.events.off('victory', this.showVictory, this)
       this.gameScene.events.off('crownReady', this.showCrownReady, this)
+      this.confetti.destroy()
     })
     this.input.keyboard?.on('keydown-H', () => this.toggleHelp())
     this.input.keyboard?.on('keydown-M', (event: KeyboardEvent) => { if (!event.repeat) this.gameScene.audio.toggleMute() })
     this.input.keyboard?.on('keydown-ESC', () => { if (this.modal && !this.gameScene.gameOver) this.closeModal() })
+    // Quick retry / advance from the keyboard once a run has ended.
+    this.input.keyboard?.on('keydown-ENTER', () => {
+      if (this.gameScene.gameOver) this.restart(this.gameScene.coronation.result === 'victory')
+    })
   }
 
   private text(x: number, y: number, value: string, size: number, color = INK, font = 'Arial') {
@@ -77,6 +89,8 @@ export class UIScene extends Phaser.Scene {
     this.button(572, 33, 48, 48, '?', () => this.toggleHelp(), false)
     this.button(637, 33, 48, 48, '↻', () => this.showReset(), false)
     this.text(34, 120, 'HEIGHT', 11, MUTED).setLetterSpacing(2)
+    this.savedBest = loadSave().bestHeight
+    this.bestLabel = this.text(104, 120, `BEST ${this.savedBest.toFixed(1)}m`, 11, '#b9a878').setLetterSpacing(1)
     this.heightLabel = this.text(34, 138, '0.0 m', 25, GOLD, 'Georgia')
     this.text(226, 120, 'ROOMS', 11, MUTED).setLetterSpacing(2)
     this.roomsLabel = this.text(226, 138, '00', 25, INK, 'Georgia')
@@ -136,8 +150,9 @@ export class UIScene extends Phaser.Scene {
     return button
   }
 
-  update() {
+  update(_time: number, delta: number) {
     const game = this.gameScene
+    this.confetti.update(delta)
     const silent = game.audio.muted || !game.audio.available
     const icon = this.soundIcon.clear().fillStyle(silent ? 0x8fa9a5 : 0xe5c58c)
     icon.fillRect(10, 20, 7, 10).fillTriangle(16, 20, 25, 13, 25, 36)
@@ -148,11 +163,12 @@ export class UIScene extends Phaser.Scene {
     this.heightLabel.setText(`${game.height.toFixed(1)} m`)
     this.roomsLabel.setText(String(game.blocks.length).padStart(2, '0'))
     this.dropButton.setAlpha(game.ready ? 1 : .45)
-    this.dropText.setText(game.ready ? '↓  DROP ROOM' : game.gameOver ? game.coronation.result === 'victory' ? 'KINGDOM CROWNED' : 'THE KING HAS FALLEN' : 'SETTLING…')
+    const fallen = game.defeatReason === 'collapse' ? 'CASTLE COLLAPSED' : 'THE KING HAS FALLEN'
+    this.dropText.setText(game.ready ? '↓  DROP ROOM' : game.gameOver ? game.coronation.result === 'victory' ? 'KINGDOM CROWNED' : fallen : 'SETTLING…')
     const unstable = game.blocks.some(b => b.stability.state === 'UNSTABLE')
     const critical = game.blocks.some(b => b.stability.tilt >= 35 * Math.PI / 180)
     const moving = game.blocks.some(b => b.stability.state === 'FALLING' || b.stability.state === 'SETTLING')
-    const label = game.gameOver ? game.coronation.result === 'victory' ? 'Crowned' : 'King fallen' : critical ? 'Critical tilt' : unstable ? 'Wobbling' : moving ? 'Settling' : game.blocks.length ? 'Stable' : 'Ready to build'
+    const label = game.gameOver ? game.coronation.result === 'victory' ? 'Crowned' : game.defeatReason === 'collapse' ? 'Collapsed' : 'King fallen' : critical ? 'Critical tilt' : unstable ? 'Wobbling' : moving ? 'Settling' : game.blocks.length ? 'Stable' : 'Ready to build'
     const color = game.coronation.result === 'defeat' || critical ? '#e77c72' : unstable || moving ? '#e8c77e' : '#a5cbb3'
     this.stabilityLabel.setText(label).setColor(color); this.statusDot.setFillStyle(Phaser.Display.Color.HexStringToColor(color).color)
     if (this.previousType !== game.crane.type || this.previousKing !== game.kingPlaced || this.previousUnlocked !== game.kingUnlocked) {
@@ -175,8 +191,11 @@ export class UIScene extends Phaser.Scene {
     }
     const air = game.waves.enemies.filter(e => e.type === 'gargoyle').length
     const ground = game.waves.enemies.length - air
-    this.threatLabel.setText(`AIR ${air}  ·  RAMS ${ground}  ·  DEFEATED ${game.waves.kills}`).setVisible(game.placed > 0)
-    this.stageLabel.setText(`L${game.coronation.level} / ${game.coronation.started ? 'DEFEND' : 'BUILD'}`)
+    const wind = Math.abs(game.wind) > .00003 ? `  ·  WIND ${game.wind > 0 ? '→' : '←'}` : ''
+    const losses = game.lost && !game.kingPlaced ? `  ·  LOST ${game.lost}/${MAX_LOST_ROOMS}` : ''
+    this.threatLabel.setText(`AIR ${air}  ·  RAMS ${ground}  ·  DEFEATED ${game.waves.kills}${wind}${losses}`).setVisible(game.placed > 0)
+    this.stageLabel.setText(`${game.coronation.config.label} / ${game.coronation.started ? 'DEFEND' : 'BUILD'}`)
+    if (game.bestHeight > this.savedBest) this.bestLabel.setText(`BEST ${game.bestHeight.toFixed(1)}m`)
     if (game.coronation.started) {
       const stable = game.blocks.find(b => b.type === 'king')?.stability.state === 'STABLE'
       this.toast.setAlpha(1).setText(stable ? 'HOLD THE THRONE. DEFEND YOUR KING!' : 'THRONE UNSTABLE — COUNTDOWN RESET').setColor(stable ? GOLD : '#edaa86')
@@ -214,7 +233,7 @@ export class UIScene extends Phaser.Scene {
       ['01', 'Build & defend', `Reach ${this.gameScene.coronation.targetHeight}m to unlock your throne. Drag, rotate, drop.`],
       ['02', 'Arm your castle', 'Archers target air. Cannons blast rams. Green can fire.'],
       ['03', 'Watch the skies', 'Gargoyles arrive every 10m; rams assault the base.'],
-      ['04', 'The Coronation', 'Crown the top. Stay STABLE for 10s. Wobble resets it.'],
+      ['04', 'The Coronation', `Crown the top. Stay STABLE for ${this.gameScene.coronation.durationMs / 1000}s. Wobble resets it.`],
     ]
     lines.forEach(([n, title, detail], i) => {
       const y = 480 + i * 82
@@ -223,7 +242,7 @@ export class UIScene extends Phaser.Scene {
       panel.add(this.text(148, y + 32, detail!, 15, MUTED))
     })
     panel.add(this.text(360, 828, 'KEYBOARD: ← → / A D aim · R rotate · Space drop · 1–4 rooms', 14, MUTED).setOrigin(.5))
-    panel.add(this.text(360, 850, 'M · MUTE SOUND', 11, MUTED).setOrigin(.5))
+    panel.add(this.text(360, 850, 'M · MUTE SOUND  ·  ENTER · RETRY / NEXT AFTER A RUN', 11, MUTED).setOrigin(.5))
     panel.add(this.button(95, 864, 530, 55, 'RETURN TO YOUR KINGDOM', () => this.closeModal(), true))
   }
 
@@ -231,21 +250,31 @@ export class UIScene extends Phaser.Scene {
 
   private showReset() {
     if (this.modal) return
-    if (this.gameScene.placed === 0) { this.restart(); return }
+    const endless = loadSave().unlockedLevel > CAMPAIGN_LEVELS
+    if (this.gameScene.placed === 0 && !endless) { this.restart(); return }
     const panel = this.panel('A fresh foundation', 'BEGIN A NEW CASTLE')
     panel.add(this.text(360, 535, `Your castle reached ${this.gameScene.bestHeight.toFixed(1)} metres.`, 25, INK, 'Georgia').setOrigin(.5))
     panel.add(this.text(360, 587, 'Starting again clears the current castle.', 20, MUTED).setOrigin(.5))
+    if (endless) {
+      panel.add(this.button(95, 645, 530, 60, 'ENDLESS SIEGE', () => this.startLevel(CAMPAIGN_LEVELS + 1), false))
+    }
     panel.add(this.button(95, 733, 530, 60, 'BUILD AGAIN', () => this.restart(), true))
     panel.add(this.button(95, 821, 530, 60, 'KEEP BUILDING', () => this.closeModal(), false))
   }
 
   private showDefeat() {
-    const panel = this.panel('The king has fallen', 'EVEN GREAT KINGDOMS BEGIN AGAIN')
-    panel.add(this.text(360, 510, `${this.gameScene.bestHeight.toFixed(1)} m`, 64, GOLD, 'Georgia').setOrigin(.5))
-    panel.add(this.text(360, 579, 'YOUR HIGHEST CASTLE', 14, MUTED).setOrigin(.5).setLetterSpacing(3))
-    panel.add(this.text(360, 665, `${this.gameScene.placed} rooms placed  ·  ${this.gameScene.waves.kills} enemies defeated`, 22, INK).setOrigin(.5))
-    panel.add(this.text(360, 729, 'Build a wide base. Crown it when it is steady.', 20, MUTED).setOrigin(.5))
-    panel.add(this.button(95, 835, 530, 60, 'BUILD ANOTHER KINGDOM', () => this.restart(), true))
+    const game = this.gameScene
+    const collapse = game.defeatReason === 'collapse'
+    const panel = this.panel(collapse ? 'Castle collapsed!' : 'The King has fallen!',
+      collapse ? 'THE WALLS GAVE WAY BENEATH YOUR KINGDOM' : 'THE THRONE TOPPLED FROM ITS TOWER')
+    const best = loadSave().bestHeight
+    panel.add(this.text(360, 510, `${game.bestHeight.toFixed(1)} m`, 64, GOLD, 'Georgia').setOrigin(.5))
+    panel.add(this.text(360, 579, game.newBestHeight ? '★ NEW BEST HEIGHT ★' : `THIS RUN  ·  ALL-TIME BEST ${best.toFixed(1)} m`, 14, game.newBestHeight ? GOLD : MUTED).setOrigin(.5).setLetterSpacing(3))
+    panel.add(this.text(360, 640, `${game.placed} rooms placed  ·  ${game.lost} lost  ·  ${game.waves.kills} enemies defeated`, 20, INK).setOrigin(.5))
+    const tip = collapse ? 'Wide stone walls first. Let each room settle.' : 'Crown only a steady tower. Keep archers near the top.'
+    panel.add(this.text(360, 700, tip, 19, MUTED).setOrigin(.5))
+    panel.add(this.button(95, 760, 530, 70, `↻  TRY AGAIN  ·  ${game.coronation.config.label}`, () => this.restart(), true))
+    panel.add(this.text(360, 868, 'PRESS ENTER TO RETRY', 12, MUTED).setOrigin(.5).setLetterSpacing(2))
   }
 
   private showCrownReady() {
@@ -254,14 +283,48 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showVictory() {
-    const game = this.gameScene
-    const panel = this.panel('Stage clear', `LEVEL ${game.coronation.level} · THE CORONATION IS COMPLETE`)
-    panel.add(this.text(360, 507, `${game.height.toFixed(1)} m`, 64, GOLD, 'Georgia').setOrigin(.5))
-    panel.add(this.text(360, 572, 'FINAL CASTLE HEIGHT', 14, MUTED).setOrigin(.5).setLetterSpacing(3))
-    panel.add(this.text(360, 655, `${game.waves.kills} enemies defeated  ·  ${game.placed} rooms built`, 22, INK).setOrigin(.5))
-    panel.add(this.button(95, 743, 530, 65, `NEXT LEVEL · ${game.coronation.targetHeight + 5}m`, () => this.restart(true), true))
+    const game = this.gameScene, result = game.victoryResult
+    const finalCampaign = game.coronation.level === CAMPAIGN_LEVELS
+    const title = game.coronation.config.endless ? 'Siege survived' : finalCampaign ? 'Long live the King!' : 'Stage clear'
+    const panel = this.panel(title, `${game.coronation.config.label} · ${game.coronation.config.name.toUpperCase()}`)
+    const stars = result?.stars ?? 1
+    const starArt = this.add.graphics()
+    for (let i = 0; i < 3; i++) {
+      const lit = i < stars, cx = 270 + i * 90, cy = 478 - (i === 1 ? 12 : 0)
+      const points = Array.from({ length: 10 }, (_, k) => {
+        const r = k % 2 ? 14 : 32, a = -Math.PI / 2 + k * Math.PI / 5
+        return new Phaser.Math.Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r)
+      })
+      starArt.fillStyle(lit ? 0xe5c58c : 0x2a3f48).fillPoints(points, true)
+      starArt.lineStyle(2, lit ? 0xf6e2b0 : 0x3c535b).strokePoints(points, true)
+    }
+    panel.add(starArt)
+    starArt.setScale(.2).setPosition(288, 381)
+    this.tweens.add({ targets: starArt, scale: 1, x: 0, y: 0, duration: 450, ease: 'Back.Out' })
+    panel.add(this.text(360, 548, `${(result?.score ?? 0).toLocaleString()}`, 52, GOLD, 'Georgia').setOrigin(.5))
+    panel.add(this.text(360, 592, result?.newHighScore ? '★ NEW HIGH SCORE ★' : `SCORE  ·  HIGH ${loadSave().highScore.toLocaleString()}`, 13, result?.newHighScore ? GOLD : MUTED).setOrigin(.5).setLetterSpacing(3))
+    const stats: [string, string][] = [
+      ['HEIGHT', `${game.height.toFixed(1)} m`], ['ENEMIES', String(game.waves.kills)],
+      ['ROOMS', `${game.placed}${game.lost ? ` (-${game.lost})` : ''}`], ['TIME', this.clock(game.runSeconds)],
+    ]
+    stats.forEach(([label, value], i) => {
+      const x = 130 + i * 153
+      panel.add(this.text(x, 632, label, 11, MUTED).setOrigin(.5).setLetterSpacing(2))
+      panel.add(this.text(x, 662, value, 22, INK, 'Georgia').setOrigin(.5))
+    })
+    panel.add(this.text(360, 707, `★ Crowned  ·  ★ ≤2 rooms lost  ·  ★ under ${this.clock(game.coronation.config.parSeconds)}`, 13, MUTED).setOrigin(.5))
+    const next = getLevelConfig(game.coronation.level + 1)
+    const nextLabel = next.endless ? (game.coronation.config.endless ? `NEXT SIEGE · ${next.targetHeight}m` : 'ENDLESS MODE UNLOCKED ▸') : `NEXT LEVEL · ${next.targetHeight}m`
+    panel.add(this.button(95, 743, 530, 65, nextLabel, () => this.restart(true), true))
     panel.add(this.button(95, 835, 530, 60, 'PLAY AGAIN', () => this.restart(), false))
+    this.confetti.confetti(); this.time.delayedCall(700, () => this.confetti.confetti(60))
   }
 
-  private restart(next = false) { this.scene.stop(); this.gameScene.scene.restart({ level: this.gameScene.coronation.level + (next ? 1 : 0) }) }
+  private clock(seconds: number) {
+    const s = Math.max(0, Math.round(seconds))
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  }
+
+  private restart(next = false) { this.startLevel(this.gameScene.coronation.level + (next ? 1 : 0)) }
+  private startLevel(level: number) { this.scene.stop(); this.gameScene.scene.restart({ level }) }
 }

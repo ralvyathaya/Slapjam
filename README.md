@@ -35,7 +35,22 @@ Keyboard: **← / →** or **A / D** to aim, **R** to rotate, **Space** to drop,
 
 The world foundation stays at y = 1120. The camera starts at scrollY = 160 and tracks rooms that have become stable at a 640-pixel screen offset, leaving space for both the crane and the fixed card dock. Tracking continues through temporary wobbling, and the crane stays above landed rooms. The translucent ghost is a bounds-based aiming guide, not a physics forecast.
 
-**Remaining Phase 4 work:** broader balancing across later levels, touch testing on real mobile hardware, and itch.io upload. Automated touch coverage uses Chromium mobile emulation. The referenced `castledown_master_prompt.md` was absent from this checkout, so Phase 2 follows the complete instructions supplied in the chat and Phase 3 follows the attached roadmap.
+### Phase 4: balancing, polish and release
+
+| Level | Target | Coronation | Threats |
+| --- | --- | --- | --- |
+| L1 · The First Stone | 15 m | 8 s | 2 scout Gargoyles per 10 m, small crown swarm, no rams |
+| L2 · Siege of Rams | 25 m | 10 s | Battering rams (max 2) + a 6-strong Gargoyle swarm |
+| L3 · The Final Climax | 35 m | 12 s | Faster, tougher rams (max 3), 8-strong swarm, gusting wind on falling rooms |
+| Endless | 45 m, +10 m each | 12 s | Unlocked after L3; HP, swarm size, ram rate and wind scale each siege |
+
+All tuning lives in `src/config/levels.ts`. Rams now wait for the first room, cannons reload every 2.5 s, and the drop cooldown is 350 ms. Losing 10 rooms before the crown is placed ends the run as **Castle collapsed!**; losing the throne shows **The King has fallen!**
+
+- The victory modal shows 1–3 stars (crowned · ≤2 rooms lost · under par time), score, high score, height, enemies, rooms, and time, with confetti. The defeat modal shows the cause, run height against the all-time best, and a large Try Again button. **Enter** retries or advances.
+- Best height, high score, stars per level, and unlocked level persist in `localStorage` (`castledown-save-v1`). This fails safely in sandboxed iframes. The header shows the best height.
+- Mobile: touch-move, context-menu, and double-tap defaults are blocked, and the page is pinned against pull-to-refresh. Web Audio resumes on every gesture and when the tab becomes visible again. The header speaker button (or **M**) toggles mute.
+
+Automated touch coverage uses Chromium mobile emulation; real-device testing is still recommended before release. The referenced `castledown_master_prompt.md` was absent from this checkout, so Phase 2 follows the complete instructions supplied in the chat and Phase 3 follows the attached roadmap.
 
 ## Validate and build
 
@@ -44,12 +59,13 @@ npm test
 npx tsc --noEmit
 npm run build
 npm run verify:build
+npm run pack      # build + artifacts/castledown-itch-v<version>.zip
 npm run preview
 ```
 
 Tests cover stacking, touch input, stability, combat gating and reload, air targeting, projectile hits, area damage, siege forces, milestone spawning, crown locks, continuous Coronation timing, victory/defeat, pause, and next-level cleanup. Audio checks cover generated samples, first-gesture unlock, actual Web Audio output, mute persistence, and voice cleanup; effects checks cover particle limits, expiry, and reduced motion. They use installed Microsoft Edge by default. On another machine, install Playwright Chromium with `npx playwright install chromium` and set `PLAYWRIGHT_CHANNEL=chromium` (or change the channel in `playwright.config.ts`).
 
-`dist/` is the complete HTML5 build. Vite uses `base: './'`; there are no remote assets or runtime CDN dependencies. For itch.io, zip the **contents** of `dist/` so `index.html` is at the archive root, choose HTML, enable the mobile-friendly option, and use a 720 × 1280 viewport. Nothing is uploaded automatically.
+`dist/` is the complete HTML5 build. Vite uses `base: './'`; there are no remote assets or runtime CDN dependencies. `npm run pack` zips the **contents** of `dist/` (with `index.html` at the archive root) using a dependency-free Node script. On itch.io, choose **HTML**, tick "played in the browser", set the viewport to 720 × 1280, and enable **Mobile friendly** and the **Fullscreen button**. Nothing is uploaded automatically.
 
 ## Layout
 

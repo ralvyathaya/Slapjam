@@ -19,7 +19,11 @@ const server = createServer(async (req, res) => {
   if (!file.startsWith(root + sep)) { res.writeHead(403).end(); return }
   try {
     const content = await readFile(file)
-    res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html')
+    const type = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css'
+      : file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg'
+      : file.endsWith('.mp3') ? 'audio/mpeg'
+      : file.endsWith('.ttf') ? 'font/ttf' : file.endsWith('.txt') ? 'text/plain' : 'text/html'
+    res.setHeader('Content-Type', type)
     res.end(content)
   } catch { res.writeHead(404).end() }
 })
@@ -36,6 +40,12 @@ try {
   await frame.locator('canvas').waitFor({ state: 'visible' })
   await page.waitForTimeout(800)
   assert.deepEqual(await frame.locator('canvas').evaluate(canvas => [canvas.width, canvas.height]), [720, 1280])
+  assert.equal(await frame.locator('canvas').evaluate(async canvas => {
+    const fonts = canvas.ownerDocument.fonts
+    await fonts.ready
+    return [...fonts].some(face => face.family === 'Cinzel' && face.status === 'loaded') &&
+      [...fonts].some(face => face.family === 'Barlow Condensed' && face.status === 'loaded')
+  }), true, 'Bundled game fonts must load in the nested iframe')
   await frame.locator('canvas').click({ position: { x: 195, y: 325 } })
   await page.keyboard.press('Space')
   await page.waitForTimeout(2000)
@@ -43,7 +53,7 @@ try {
   assert.deepEqual(failedAssets, [], 'Nested asset paths must load')
   await mkdir('artifacts', { recursive: true })
   await page.screenshot({ path: 'artifacts/production-iframe.png' })
-  console.log('Production iframe passed: nested relative assets, 720x1280 canvas, no runtime errors.')
+  console.log('Production iframe passed: nested relative assets and local fonts, 720x1280 canvas, no runtime errors.')
 } finally {
   await browser?.close()
   await new Promise(resolve => server.close(resolve))

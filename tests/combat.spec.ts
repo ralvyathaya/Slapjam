@@ -3,10 +3,10 @@ import type { Page } from '@playwright/test'
 
 async function ready(page: Page) {
   await page.goto('/')
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
-    return game.scene.getScene('Game')?.crane !== undefined
-  })
+    return !!game.scene.getScene('Game')?.crane && game.scene.isActive('UI')
+  })).toBe(true)
 }
 
 test('locked throne rejects both pointer and keyboard selection', async ({ page }) => {

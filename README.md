@@ -119,6 +119,17 @@ npm run pack
 
 ---
 
+## 🤖 AI Tools Used
+
+| Area | Tool | Notes |
+| --- | --- | --- |
+| Code | GPT 6 Astra, Claude 5.5 Opus | Gameplay systems, balancing, debugging, and tests, with human review |
+| Art | — (procedural) | All sprites, masonry, and backgrounds are generated at runtime on canvas (`BootScene`); no AI-generated or external art |
+| Audio | — (procedural) | All SFX are synthesized in code (`audioSynth.ts`); no AI-generated or external samples |
+| 3D | — | No 3D; the game is 2D canvas |
+
+---
+
 ## 📜 Credits
 
 Created for **Slapjam AI 2026** (48-Hour Sprint)  

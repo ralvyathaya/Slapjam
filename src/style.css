@@ -1,7 +1,10 @@
-:root { color-scheme: dark; font-family: Arial, sans-serif; background: #090f16; }
+@font-face { font-family: 'Cinzel'; src: url('./assets/fonts/Cinzel.ttf') format('truetype'); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: 'Barlow Condensed'; src: url('./assets/fonts/BarlowCondensed-Medium.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Barlow Condensed'; src: url('./assets/fonts/BarlowCondensed-SemiBold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+:root { color-scheme: dark; font-family: 'Barlow Condensed', sans-serif; background: #070e17; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { position: fixed; inset: 0; }
-body { background: radial-gradient(ellipse at center, #1c2c32 0%, #090f16 72%); }
+body { background: radial-gradient(ellipse at 50% 30%, #233e48 0%, #0d1a27 42%, #050910 90%); }
 #app { display: flex; align-items: center; justify-content: center; }
-canvas { display: block; box-shadow: 0 0 100px #0008; touch-action: none; outline: none; }
+canvas { display: block; box-shadow: 0 0 0 1px #bd97623d, 0 24px 100px #000b, 0 0 100px #294a5329; touch-action: none; outline: none; }

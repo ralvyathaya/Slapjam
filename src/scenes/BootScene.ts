@@ -1,14 +1,59 @@
 import Phaser from 'phaser'
 import { BLOCKS, BLOCK_TYPES } from '../types/blockTypes'
 import type { BlockType } from '../types/blockTypes'
+import backgroundUrl from '../assets/night-valley.png'
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot') }
 
-  create() {
+  preload() {
+    this.load.image('landscape', backgroundUrl)
+    this.load.audio('bgm-intro', 'audio/bgm-intro.mp3')
+    this.load.audio('bgm-gameplay', 'audio/bgm-gameplay.mp3')
+    this.load.audio('bgm-victory', 'audio/bgm-victory.mp3')
+    this.load.audio('bgm-defeat', 'audio/bgm-defeat.mp3')
+  }
+
+  async create() {
+    this.add.text(360, 640, 'Summoning your kingdom…', { fontFamily: 'Georgia', fontSize: '24px', color: '#e5c58c' }).setOrigin(.5)
+    // Canvas text captures its font at creation; load the local faces first.
+    await Promise.all([
+      document.fonts.load('700 32px Cinzel'), document.fonts.load('400 20px "Barlow Condensed"'),
+      document.fonts.load('700 20px "Barlow Condensed"'),
+    ]).catch(() => {})
     for (const type of BLOCK_TYPES) this.makeRoom(type)
-    this.makeLandscape()
+    this.makePanel('hud-metal', 720, 184)
+    this.makePanel('dock-wood', 720, 280, true)
+    this.makePanel('modal-metal', 610, 630)
+    this.makePanel('room-card', 156, 114)
     this.scene.start('Game')
+  }
+
+  private makePanel(key: string, w: number, h: number, wood = false) {
+    const texture = this.textures.createCanvas(key, w, h)!, c = texture.context
+    const gradient = c.createLinearGradient(0, 0, 0, h)
+    gradient.addColorStop(0, wood ? '#302a27' : '#263c47')
+    gradient.addColorStop(.45, wood ? '#201f22' : '#162832')
+    gradient.addColorStop(1, wood ? '#141a21' : '#0e1b26')
+    c.fillStyle = gradient; c.fillRect(0, 0, w, h)
+    for (let i = 0; i < (wood ? 160 : 300); i++) {
+      c.fillStyle = i % 3 ? '#c5b28c06' : '#00000010'
+      const x = i * 97 % w, y = i * 43 % h
+      c.fillRect(x, y, wood ? 30 + i % 120 : 2, 1)
+    }
+    if (wood) {
+      c.strokeStyle = '#070b1280'; c.lineWidth = 2
+      for (let y = 35; y < h; y += 46) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke() }
+    }
+    c.strokeStyle = '#886943'; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4)
+    c.strokeStyle = '#e1bd7e65'; c.lineWidth = 1; c.strokeRect(6, 6, w - 12, h - 12)
+    c.strokeStyle = '#080e1790'; c.lineWidth = 3; c.strokeRect(9, 9, w - 18, h - 18)
+    for (const x of [15, w - 15]) for (const y of [15, h - 15]) {
+      c.fillStyle = '#090f18'; c.beginPath(); c.arc(x + 1, y + 2, 4, 0, Math.PI * 2); c.fill()
+      c.fillStyle = '#a88a5e'; c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill()
+      c.fillStyle = '#e5c58c'; c.fillRect(x - 1, y - 2, 2, 1)
+    }
+    texture.refresh()
   }
 
   private makeRoom(type: BlockType) {
@@ -94,37 +139,4 @@ export class BootScene extends Phaser.Scene {
     texture.refresh()
   }
 
-  private makeLandscape() {
-    const texture = this.textures.createCanvas('landscape', 720, 1280)!
-    const c = texture.context
-    const gradient = c.createLinearGradient(0, 0, 0, 1280)
-    gradient.addColorStop(0, '#10212e'); gradient.addColorStop(.6, '#29494b'); gradient.addColorStop(1, '#52675b')
-    c.fillStyle = gradient; c.fillRect(0, 0, 720, 1280)
-    for (let i = 0; i < 95; i++) {
-      c.fillStyle = i % 3 === 0 ? '#dcd5ad70' : '#a6c2bd35'
-      c.fillRect((i * 173 + 31) % 720, (i * 97 + 180) % 850, i % 4 === 0 ? 2 : 1, 2)
-    }
-    const halo = c.createRadialGradient(554, 320, 10, 554, 320, 140)
-    halo.addColorStop(0, '#e1d7ac25'); halo.addColorStop(1, '#e1d7ac00')
-    c.fillStyle = halo; c.fillRect(404, 170, 300, 300)
-    c.fillStyle = '#cbd3b3'; c.beginPath(); c.arc(554, 320, 39, 0, Math.PI * 2); c.fill()
-    c.fillStyle = '#244048'; c.beginPath(); c.arc(537, 304, 34, 0, Math.PI * 2); c.fill()
-    const ridge = (base: number, color: string, points: number[]) => {
-      c.fillStyle = color; c.beginPath(); c.moveTo(0, 1280)
-      points.forEach((n, i) => c.lineTo(i * 90, base + n)); c.lineTo(720, 1280); c.fill()
-    }
-    ridge(650, '#29484a', [70, 0, 120, 35, 100, -50, 35, 90, 30])
-    ridge(770, '#254346', [20, -40, 65, 0, 90, 30, -20, 80, 40])
-    c.fillStyle = '#203d42'
-    for (const [x, y, w, h] of [[54, 651, 54, 218], [119, 718, 33, 151], [571, 711, 55, 193], [640, 663, 32, 230]]) {
-      c.fillRect(x!, y!, w!, h!); c.beginPath(); c.moveTo(x! - 6, y!); c.lineTo(x! + w! / 2, y! - 40); c.lineTo(x! + w! + 6, y!); c.fill()
-      c.fillStyle = '#99a27b25'; c.fillRect(x! + w! / 2 - 3, y! + 28, 6, 15); c.fillStyle = '#203d42'
-    }
-    ridge(925, '#1a353c', [0, -45, 60, 12, 70, 0, 50, -22, 0])
-    for (let i = 0; i < 22; i++) {
-      const x = (i * 137) % 720, y = 900 + (i * 31) % 135
-      c.fillStyle = '#152f36'; c.beginPath(); c.moveTo(x, y - 55); c.lineTo(x - 22, y + 18); c.lineTo(x + 22, y + 18); c.fill()
-    }
-    texture.refresh()
-  }
 }

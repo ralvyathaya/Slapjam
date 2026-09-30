@@ -9,6 +9,7 @@ import { CoronationSystem } from '../systems/CoronationSystem'
 import { AudioSystem } from '../systems/AudioSystem'
 import { EffectsSystem } from '../systems/EffectsSystem'
 import { recordHeight, recordVictory } from '../systems/SaveData'
+import { DISPLAY_FONT, UI_FONT } from '../config/visualTheme'
 
 export type DefeatReason = 'king' | 'collapse'
 /** Losing this many rooms before the crown is placed razes the castle. */
@@ -58,9 +59,11 @@ export class GameScene extends Phaser.Scene {
     this.waves = new WaveManager(this, this.level)
     this.combat = new CombatSystem(this)
     this.audio = new AudioSystem(this)
+    this.audio.playBgm('intro', true, .4)
     this.effects = new EffectsSystem(this)
     this.cameras.main.setViewport(0, 0, 720, 1000).setScroll(0, 160)
-    this.add.image(0, 0, 'landscape').setOrigin(0).setScrollFactor(0).setDepth(-20)
+    this.add.image(0, 100, 'landscape').setOrigin(0).setDisplaySize(720, 1280).setScrollFactor(0).setDepth(-20)
+    this.add.rectangle(360, 592, 720, 816, 0x0b1c2b, .15).setScrollFactor(0).setDepth(-19)
     this.makeFoundation()
     this.makeFinishLine()
     this.markers = this.add.container(0, 0).setDepth(-5)
@@ -145,6 +148,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.ready || (this.crane.type === 'king' && (this.kingPlaced || !this.kingUnlocked))) return
     const block = new CastleBlock(this, this.crane.type, this.crane.x, this.crane.y, this.crane.angle)
     this.blocks.push(block); this.lastBlock = block; this.placed++
+    if (this.placed === 1) this.audio.playBgm('gameplay', true, .45)
     this.nextDropAt = this.elapsed + 350
     if (this.crane.type === 'king') { this.kingPlaced = true; this.lostAtCrown = this.lost; this.crane.select('stone') }
   }
@@ -255,7 +259,7 @@ export class GameScene extends Phaser.Scene {
       this.victoryResult = recordVictory({ level: this.coronation.level, height: this.height, kills: this.waves.kills,
         placed: this.placed, lost: this.lost, seconds: this.runSeconds, parSeconds: this.coronation.config.parSeconds })
     }
-    this.audio.stop(); this.audio.play(result, .85)
+    this.audio.stop(); this.audio.play(result, .85); this.audio.playBgm(result, false, .55)
     if (result === 'victory') this.effects.victory(360, this.highestY)
     this.events.emit(result)
   }
@@ -265,7 +269,7 @@ export class GameScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(-2).lineStyle(2, 0xe6bd73, .65)
     for (let x = 38; x < 680; x += 24) g.lineBetween(x, y, x + 12, y)
     this.add.text(680, y - 24, `FINISH / ${this.coronation.targetHeight}m`, {
-      fontFamily: 'Arial', fontSize: '17px', color: '#e6c68c', backgroundColor: '#1c333c', padding: { x: 8, y: 4 },
+      fontFamily: UI_FONT, fontSize: '18px', fontStyle: 'bold', color: '#f5d49a', backgroundColor: '#132431', padding: { x: 10, y: 4 },
     }).setOrigin(1, 0).setDepth(-1)
   }
 
@@ -285,7 +289,7 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(0xbda979).fillRect(x - 2, GROUND_Y - 67, 4, 67)
       g.fillStyle(0x86aa92).fillTriangle(x + 2, GROUND_Y - 67, x + 23, GROUND_Y - 57, x + 2, GROUND_Y - 48)
     }
-    this.add.text(360, GROUND_Y + 26, 'THE FOUNDATION', { fontFamily: 'Arial', fontSize: '14px', letterSpacing: 5, color: '#a4b4a0' }).setOrigin(.5).setDepth(3)
+    this.add.text(360, GROUND_Y + 26, 'THE FOUNDATION', { fontFamily: DISPLAY_FONT, fontSize: '13px', fontStyle: 'bold', letterSpacing: 3, color: '#d5ceb1' }).setOrigin(.5).setDepth(3)
   }
 
   private updateMilestones() {
@@ -295,7 +299,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = Math.max(1, first); i < first + 6; i++) {
       const y = GROUND_Y - i * 300
       const line = this.add.graphics().lineStyle(1, 0xbcd0b5, .12).lineBetween(48, y, 672, y)
-      const label = this.add.text(38, y - 19, `${i * 10} m`, { fontFamily: 'Arial', fontSize: '16px', color: '#839e96' })
+      const label = this.add.text(38, y - 19, `${i * 10} m`, { fontFamily: UI_FONT, fontSize: '17px', color: '#a9c1c5', shadow: { color: '#081221', offsetY: 1, blur: 3, fill: true } })
       this.markers.add([line, label])
     }
   }

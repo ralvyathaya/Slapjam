@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { BLOCKS, GROUND_Y } from '../types/blockTypes'
 import type { BlockType } from '../types/blockTypes'
 import type { CastleBlock } from './CastleBlock'
+import { UI_FONT } from '../config/visualTheme'
 
 export class DropperCrane {
   type: BlockType = 'stone'
@@ -19,7 +20,9 @@ export class DropperCrane {
     this.graphic = scene.add.graphics().setDepth(18)
     this.preview = scene.add.image(this.x, this.y, this.type).setDepth(20).setAlpha(.92)
     this.ghost = scene.add.image(this.x, GROUND_Y - 45, this.type).setDepth(9).setAlpha(.13).setTint(0xb9ddba)
-    this.label = scene.add.text(this.x, this.y - 100, 'READY TO DROP', { fontFamily: 'Arial', fontSize: '15px', color: '#c4cfb6', letterSpacing: 3 }).setOrigin(.5).setDepth(20)
+    this.label = scene.add.text(this.x, this.y - 100, 'READY TO DROP', { fontFamily: UI_FONT, fontSize: '17px', fontStyle: 'bold', color: '#f1d69d', letterSpacing: 3,
+      shadow: { color: '#081221', offsetY: 2, blur: 5, fill: true },
+    }).setOrigin(.5).setDepth(20)
   }
 
   select(type: BlockType) { this.type = type; this.angle = 0; this.preview.setTexture(type); this.ghost.setTexture(type) }

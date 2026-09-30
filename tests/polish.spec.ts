@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { CUE_DURATIONS, SAMPLE_RATE, synthesize } from '../src/systems/audioSynth'
+
+async function ready(page: Page) {
+  await page.goto('/')
+  await expect.poll(() => page.evaluate(async () => {
+    const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
+    return !!game.scene.getScene('Game')?.crane && game.scene.isActive('UI')
+  })).toBe(true)
+}
 
 test('all synthesized cues contain finite, bounded audio with quiet edges', () => {
   for (const cue of Object.keys(CUE_DURATIONS) as (keyof typeof CUE_DURATIONS)[]) {
@@ -14,8 +23,7 @@ test('all synthesized cues contain finite, bounded audio with quiet edges', () =
 
 test('first gesture unlocks audible output; mute persists and restart releases voices and effects', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
-  await page.goto('/')
-  await page.locator('canvas').waitFor()
+  await ready(page)
   await page.mouse.click(360, 650)
   await expect.poll(async () => page.evaluate(async () => {
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
@@ -63,8 +71,7 @@ test('first gesture unlocks audible output; mute persists and restart releases v
 
 test('reduced motion suppresses shake and cosmetic particles stay bounded and expire', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto('/')
-  await page.locator('canvas').waitFor()
+  await ready(page)
   const result = await page.evaluate(async () => {
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
     game.loop.sleep()

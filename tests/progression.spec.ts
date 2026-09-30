@@ -25,10 +25,10 @@ test('victory persists progress and high score; defeat names its cause', async (
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
   await page.reload()
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
-    return game.scene.getScene('Game')?.crane !== undefined
-  })
+    return !!game.scene.getScene('Game')?.crane && game.scene.isActive('UI')
+  })).toBe(true)
   const saved = await page.evaluate(async () => {
     const { game } = await import(Array.from(document.scripts).find(s => s.src.includes('/src/main.ts'))!.src)
     const s = game.scene.getScene('Game')

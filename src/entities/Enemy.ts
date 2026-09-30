@@ -18,6 +18,7 @@ export class Enemy {
   private readonly scene: Phaser.Scene
   private readonly health: Phaser.GameObjects.Graphics
   private wings: Phaser.GameObjects.Graphics[] = []
+  private sprite?: Phaser.GameObjects.Sprite
   private age = 0
   private cooldown = 0
   private mode: 'approach' | 'windup' | 'swoop' | 'retreat' = 'approach'
@@ -47,6 +48,10 @@ export class Enemy {
     this.vx = (this.x - oldX) / dt; this.vy = (this.y - oldY) / dt
     this.visual.setPosition(this.x, this.y)
     this.wings.forEach((wing, i) => wing.setRotation(Math.sin(this.age / 85) * .3 * (i === 0 ? 1 : -1)))
+    if (this.sprite) {
+      if (this.vx < -5) this.sprite.setFlipX(true)
+      else if (this.vx > 5) this.sprite.setFlipX(false)
+    }
     this.health.clear().fillStyle(0x15252d).fillRoundedRect(-27, -43, 54, 5, 2)
     this.health.fillStyle(this.type === 'gargoyle' ? 0xc3a0cb : 0xe0a17c).fillRect(-26, -42, 52 * this.hp / this.maxHp, 3)
   }
@@ -111,16 +116,24 @@ export class Enemy {
   private draw() {
     const g = this.scene.add.graphics()
     if (this.type === 'gargoyle') {
-      for (const side of [-1, 1]) {
-        const wing = this.scene.add.graphics().fillStyle(0x877d9a).lineStyle(2, 0xb0a1b7)
-        const points = [[0, 0], [side * 46, -26], [side * 36, 6], [side * 23, -1], [side * 15, 14]].map(([x, y]) => new Phaser.Math.Vector2(x, y))
-        wing.fillPoints(points, true).strokePoints(points, true)
-        this.visual.add(wing); this.wings.push(wing)
+      if (this.scene.textures.exists('gargoyle_sheet') && this.scene.anims.exists('gargoyle_fly')) {
+        this.sprite = this.scene.add.sprite(0, -6, 'gargoyle_sheet', '0')
+        this.sprite.setDisplaySize(78, 64)
+        this.sprite.play('gargoyle_fly')
+        this.sprite.setFlipX(this.side === 1)
+        this.visual.add(this.sprite)
+      } else {
+        for (const side of [-1, 1]) {
+          const wing = this.scene.add.graphics().fillStyle(0x877d9a).lineStyle(2, 0xb0a1b7)
+          const points = [[0, 0], [side * 46, -26], [side * 36, 6], [side * 23, -1], [side * 15, 14]].map(([x, y]) => new Phaser.Math.Vector2(x, y))
+          wing.fillPoints(points, true).strokePoints(points, true)
+          this.visual.add(wing); this.wings.push(wing)
+        }
+        g.fillStyle(0x687580).fillEllipse(0, 0, 29, 40)
+        g.fillStyle(0x9c9aa8).fillTriangle(-14, -12, -13, -33, -3, -17).fillTriangle(14, -12, 13, -33, 3, -17)
+        g.fillStyle(0xe5a27e).fillRect(-9, -9, 6, 4).fillRect(3, -9, 6, 4)
+        g.lineStyle(2, 0x343e51).lineBetween(-6, 5, 6, 5)
       }
-      g.fillStyle(0x687580).fillEllipse(0, 0, 29, 40)
-      g.fillStyle(0x9c9aa8).fillTriangle(-14, -12, -13, -33, -3, -17).fillTriangle(14, -12, 13, -33, 3, -17)
-      g.fillStyle(0xe5a27e).fillRect(-9, -9, 6, 4).fillRect(3, -9, 6, 4)
-      g.lineStyle(2, 0x343e51).lineBetween(-6, 5, 6, 5)
     } else {
       g.fillStyle(0x26383d).fillCircle(-25, 15, 13).fillCircle(25, 15, 13)
       g.lineStyle(3, 0xc7a375).strokeCircle(-25, 15, 10).strokeCircle(25, 15, 10)

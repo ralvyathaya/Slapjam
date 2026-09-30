@@ -2,12 +2,14 @@ import Phaser from 'phaser'
 import { BLOCKS, BLOCK_TYPES } from '../types/blockTypes'
 import type { BlockType } from '../types/blockTypes'
 import backgroundUrl from '../assets/night-valley.png'
+import gargoyleUrl from '../assets/gargoyle.png'
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot') }
 
   preload() {
     this.load.image('landscape', backgroundUrl)
+    this.load.image('gargoyle_sheet', gargoyleUrl)
     this.load.audio('bgm-intro', 'audio/bgm-intro.mp3')
     this.load.audio('bgm-gameplay', 'audio/bgm-gameplay.mp3')
     this.load.audio('bgm-victory', 'audio/bgm-victory.mp3')
@@ -26,6 +28,26 @@ export class BootScene extends Phaser.Scene {
     this.makePanel('dock-wood', 720, 280, true)
     this.makePanel('modal-metal', 610, 630)
     this.makePanel('room-card', 156, 114)
+    const gargoyleTex = this.textures.get('gargoyle_sheet')
+    if (gargoyleTex && !gargoyleTex.has('0')) {
+      gargoyleTex.add('0', 0, 0, 0, 167, 373)
+      gargoyleTex.add('1', 0, 167, 0, 167, 373)
+      gargoyleTex.add('2', 0, 334, 0, 167, 373)
+      gargoyleTex.add('3', 0, 501, 0, 168, 373)
+      if (!this.anims.exists('gargoyle_fly')) {
+        this.anims.create({
+          key: 'gargoyle_fly',
+          frames: [
+            { key: 'gargoyle_sheet', frame: '0' },
+            { key: 'gargoyle_sheet', frame: '1' },
+            { key: 'gargoyle_sheet', frame: '2' },
+            { key: 'gargoyle_sheet', frame: '3' },
+          ],
+          frameRate: 6,
+          repeat: -1,
+        })
+      }
+    }
     this.scene.start('Game')
   }
 
